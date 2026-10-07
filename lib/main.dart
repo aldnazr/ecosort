@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
+import 'screens/home_screen.dart';
+import 'services/tflite/waste_detector_service.dart';
+import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const MainApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  final detector = WasteDetectorService();
+  runApp(EcoSortApp(detector: detector));
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class EcoSortApp extends StatelessWidget {
+  final WasteDetector detector;
+
+  const EcoSortApp({
+    super.key,
+    required this.detector,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(body: Center(child: Text('Hello World!'))),
+    return MaterialApp(
+      title: 'EcoSort',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.theme,
+      home: HomeScreen(detector: detector),
     );
   }
 }

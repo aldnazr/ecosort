@@ -1,0 +1,144 @@
+name: Android CI and release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: beta
+          flutter-version: "3.49.0-0.1.pre"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Restore release keystore
+        if: github.event_name == 'push'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEY_ALIAS" || -z "$STORE_PASSWORD" || -z "$KEY_PASSWORD" ]]; then
+            echo 'Configure all Android release signing secrets before publishing.' >&2
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ecosort-release.jks"
+          test -s "$RUNNER_TEMP/ecosort-release.jks"
+
+      - name: Build Android APK
+        env:
+          ECOSORT_KEYSTORE_FILE: ${{ runner.temp }}/ecosort-release.jks
+          ECOSORT_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ECOSORT_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ECOSORT_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x android/gradlew
+          flutter build apk --release
+
+      - name: Check release APK signature
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          apksigner="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          if "$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | grep -qi 'CN=Android Debug'; then
+            echo 'Refusing to publish an APK signed with the Android debug key.' >&2
+            exit 1
+          fi
+
+      - name: Name APK using pubspec version
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          version="$(sed -nE 's/^version:[[:space:]]*([^[:space:]]+).*$/\1/p' pubspec.yaml)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\+[0-9]+$ ]]; then
+            echo 'pubspec.yaml must contain a version like 0.1.0+1' >&2
+            exit 1
+          fi
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/ecosort-v${version}.apk"
+
+      - name: Upload APK for release
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ecosort-android-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: android-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download tested APK
+        uses: actions/download-artifact@v5
+        with:
+          name: ecosort-android-apk
+          path: dist
+
+      - name: Read application version
+        id: version
+        shell: bash
+        run: |
+          version="$(sed -nE 's/^version:[[:space:]]*([^[:space:]]+).*$/\1/p' pubspec.yaml)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\+[0-9]+$ ]]; then
+            echo 'pubspec.yaml must contain a version like 0.1.0+1' >&2
+            exit 1
+          fi
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "apk=dist/ecosort-v${version}.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release for new versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          APK: ${{ steps.version.outputs.apk }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" --json tagName >/dev/null 2>&1; then
+            echo "Release $TAG already exists; bump pubspec.yaml version for another release."
+            exit 0
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG exists without a release; refusing to publish a different build under it." >&2
+            exit 1
+          fi
+          gh release create "$TAG" "$APK" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
