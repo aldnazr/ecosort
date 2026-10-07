@@ -1,27 +1,54 @@
 import 'dart:ui';
+
 import 'waste_category.dart';
 
-class WasteClassInfo {
-  final String id;
-  final String displayName;
-  final WasteCategory category;
-
-  const WasteClassInfo({
-    required this.id,
-    required this.displayName,
-    required this.category,
-  });
-}
+class const WasteClassInfo({
+  required final String id,
+  required final String displayName,
+  required final WasteCategory category,
+}) {}
 
 const List<WasteClassInfo> kSupportedWasteClasses = [
-  WasteClassInfo(id: 'apple', displayName: 'Apel', category: WasteCategory.organik),
-  WasteClassInfo(id: 'banana', displayName: 'Pisang', category: WasteCategory.organik),
-  WasteClassInfo(id: 'milk_carton', displayName: 'Karton Susu', category: WasteCategory.kertas),
-  WasteClassInfo(id: 'paper_container', displayName: 'Wadah Kertas', category: WasteCategory.kertas),
-  WasteClassInfo(id: 'paper_roll', displayName: 'Gulungan Kertas', category: WasteCategory.kertas),
-  WasteClassInfo(id: 'plastic_bag', displayName: 'Kantong Plastik', category: WasteCategory.plastik),
-  WasteClassInfo(id: 'plastic_bottle', displayName: 'Botol Plastik', category: WasteCategory.plastik),
-  WasteClassInfo(id: 'plastic_container', displayName: 'Wadah Plastik', category: WasteCategory.plastik),
+  WasteClassInfo(
+    id: 'apple',
+    displayName: 'Apel',
+    category: WasteCategory.organik,
+  ),
+  WasteClassInfo(
+    id: 'banana',
+    displayName: 'Pisang',
+    category: WasteCategory.organik,
+  ),
+  WasteClassInfo(
+    id: 'milk_carton',
+    displayName: 'Karton Susu',
+    category: WasteCategory.kertas,
+  ),
+  WasteClassInfo(
+    id: 'paper_container',
+    displayName: 'Wadah Kertas',
+    category: WasteCategory.kertas,
+  ),
+  WasteClassInfo(
+    id: 'paper_roll',
+    displayName: 'Gulungan Kertas',
+    category: WasteCategory.kertas,
+  ),
+  WasteClassInfo(
+    id: 'plastic_bag',
+    displayName: 'Kantong Plastik',
+    category: WasteCategory.plastik,
+  ),
+  WasteClassInfo(
+    id: 'plastic_bottle',
+    displayName: 'Botol Plastik',
+    category: WasteCategory.plastik,
+  ),
+  WasteClassInfo(
+    id: 'plastic_container',
+    displayName: 'Wadah Plastik',
+    category: WasteCategory.plastik,
+  ),
 ];
 
 class DetectionResult {
