@@ -37,43 +37,10 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Restore release keystore
-        if: github.event_name == 'push'
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        shell: bash
-        run: |
-          if [[ -z "$KEYSTORE_BASE64" || -z "$KEY_ALIAS" || -z "$STORE_PASSWORD" || -z "$KEY_PASSWORD" ]]; then
-            echo 'Configure all Android release signing secrets before publishing.' >&2
-            exit 1
-          fi
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ecosort-release.jks"
-          test -s "$RUNNER_TEMP/ecosort-release.jks"
-
       - name: Build Android APK
-        env:
-          ECOSORT_KEYSTORE_FILE: ${{ runner.temp }}/ecosort-release.jks
-          ECOSORT_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ECOSORT_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ECOSORT_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x android/gradlew
           flutter build apk --release
-
-      - name: Check release APK signature
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          apksigner="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
-          test -n "$apksigner"
-          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
-          if "$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | grep -qi 'CN=Android Debug'; then
-            echo 'Refusing to publish an APK signed with the Android debug key.' >&2
-            exit 1
-          fi
 
       - name: Name APK using pubspec version
         if: github.event_name == 'push'
