@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../models/classification_result.dart';
 import '../theme/app_theme.dart';
 
 class ClassificationCard extends StatelessWidget {
   final ClassificationResult result;
 
-  const ClassificationCard({
-    super.key,
-    required this.result,
-  });
+  const ClassificationCard({super.key, required this.result});
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +19,7 @@ class ClassificationCard extends StatelessWidget {
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Row(
+        crossAxisAlignment: .start,
         children: [
           Container(
             padding: const EdgeInsets.all(8.0),
@@ -37,7 +36,7 @@ class ClassificationCard extends StatelessWidget {
           const SizedBox(width: 12.0),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: [
                 Text(
                   result.displayName,
