@@ -1,8 +1,10 @@
 import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:image_picker/image_picker.dart';
+
 import '../models/classification_result.dart';
 import '../services/image_processor.dart';
 import '../services/tflite/waste_classifier_service.dart';
@@ -24,7 +26,8 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver {
+class _CameraScreenState extends State<CameraScreen>
+    with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
   bool _isInitializing = true;
@@ -37,7 +40,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   ClassificationResult? _classification;
   String? _resultError;
   Future<void>? _inFlight;
-  Orientation _deviceOrientation = Orientation.portrait;  final ImagePicker _picker = ImagePicker();
+  Orientation _deviceOrientation = Orientation.portrait;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -81,8 +85,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
         if (!mounted) return;
         setState(() {
           _isInitializing = false;
-          _errorMessage =
-              'Model klasifikasi gagal dimuat: $e';
+          _errorMessage = 'Model klasifikasi gagal dimuat: $e';
         });
         return;
       }
@@ -95,7 +98,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       _cameras = widget.availableCameras ?? await availableCameras();
       if (_cameras.isEmpty) {
         setState(() {
-          _errorMessage = 'Tidak ada sensor kamera yang ditemukan pada perangkat.';
+          _errorMessage =
+              'Tidak ada sensor kamera yang ditemukan pada perangkat.';
           _isInitializing = false;
         });
         return;
@@ -198,7 +202,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
         rotation: rotation,
       );
 
-      final ClassificationResult result = await widget.classifier.classify(rgbInput);
+      final ClassificationResult result = await widget.classifier.classify(
+        rgbInput,
+      );
 
       if (mounted) {
         setState(() {
@@ -223,7 +229,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
 
   Future<void> _stopStreaming() async {
     final controller = _controller;
-    if (controller != null && controller.value.isInitialized && controller.value.isStreamingImages) {
+    if (controller != null &&
+        controller.value.isInitialized &&
+        controller.value.isStreamingImages) {
       try {
         await controller.stopImageStream();
       } catch (_) {}
@@ -252,7 +260,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
 
       final Uint8List bytes = await file.readAsBytes();
       final Float32List inputBuffer = await processGalleryImage(bytes);
-      final ClassificationResult result = await widget.classifier.classify(inputBuffer);
+      final ClassificationResult result = await widget.classifier.classify(
+        inputBuffer,
+      );
 
       if (!mounted) return;
 
@@ -313,9 +323,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
           ),
         ],
       ),
-      body: SafeArea(
-        child: _buildBody(),
-      ),
+      body: SafeArea(child: _buildBody()),
     );
   }
 
@@ -344,7 +352,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                _isPermissionDenied ? Icons.no_photography_outlined : Icons.error_outline,
+                _isPermissionDenied
+                    ? Icons.no_photography_outlined
+                    : Icons.error_outline,
                 size: 48,
                 color: AppColors.warningAmber,
               ),
@@ -385,7 +395,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
         Expanded(
           flex: 3,
           child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(16),
+            ),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -395,11 +407,16 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
                   top: 12,
                   right: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -435,7 +452,10 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
           flex: 2,
           child: Container(
             color: AppColors.backgroundCream,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -450,10 +470,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
                 const SizedBox(height: 4.0),
                 const Text(
                   'Tips: isi frame dengan satu jenis sampah agar hasil lebih akurat.',
-                  style: TextStyle(
-                    fontSize: 12.0,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12.0, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 8.0),
                 Expanded(
@@ -466,17 +483,17 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
                           ),
                         )
                       : _classification == null
-                          ? Center(
-                              child: Text(
-                                'Arahkan kamera ke satu jenis sampah untuk diklasifikasi.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13.0,
-                                  color: AppColors.textMuted.withValues(alpha: 0.8),
-                                ),
-                              ),
-                            )
-                          : ClassificationCard(result: _classification!),
+                      ? Center(
+                          child: Text(
+                            'Arahkan kamera ke satu jenis sampah untuk diklasifikasi.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13.0,
+                              color: AppColors.textMuted.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        )
+                      : ClassificationCard(result: _classification!),
                 ),
                 const SizedBox(height: 8.0),
                 OutlinedButton.icon(
