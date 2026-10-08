@@ -1,21 +1,31 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
-import 'services/tflite/waste_detector_service.dart';
+import 'services/tflite/waste_classifier_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final detector = WasteDetectorService();
-  runApp(EcoSortApp(detector: detector));
+  runApp(EcoSortApp(classifier: WasteClassifierService()));
 }
 
-class EcoSortApp extends StatelessWidget {
-  final WasteDetector detector;
+class EcoSortApp extends StatefulWidget {
+  final WasteClassifier classifier;
 
   const EcoSortApp({
     super.key,
-    required this.detector,
+    required this.classifier,
   });
+
+  @override
+  State<EcoSortApp> createState() => _EcoSortAppState();
+}
+
+class _EcoSortAppState extends State<EcoSortApp> {
+  @override
+  void dispose() {
+    widget.classifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +33,7 @@ class EcoSortApp extends StatelessWidget {
       title: 'EcoSort',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      home: HomeScreen(detector: detector),
+      home: HomeScreen(classifier: widget.classifier),
     );
   }
 }

@@ -1,20 +1,19 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/detection_result.dart';
-import '../models/waste_category.dart';
+import '../models/classification_result.dart';
 import '../services/image_processor.dart';
-import '../services/tflite/waste_detector_service.dart';
+import '../services/tflite/waste_classifier_service.dart';
 import '../theme/app_theme.dart';
 import 'camera_screen.dart';
 import 'gallery_result_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  final WasteDetector detector;
+  final WasteClassifier classifier;
 
   const HomeScreen({
     super.key,
-    required this.detector,
+    required this.classifier,
   });
 
   @override
@@ -25,15 +24,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isProcessingGallery = false;
   final ImagePicker _picker = ImagePicker();
 
-  Future<void> _startCamera() async {
+  void _startCamera() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => CameraScreen(detector: widget.detector),
+        builder: (context) => CameraScreen(classifier: widget.classifier),
       ),
     );
   }
 
   Future<void> _pickFromGallery() async {
+    if (_isProcessingGallery) return;
+
     try {
       final XFile? file = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -41,19 +42,17 @@ class _HomeScreenState extends State<HomeScreen> {
         maxHeight: 1920,
       );
 
-      if (file == null) return;
+      if (file == null || !mounted) return;
 
       setState(() {
         _isProcessingGallery = true;
       });
 
-      if (!widget.detector.isInitialized) {
-        await widget.detector.initialize();
-      }
+      await widget.classifier.initialize();
 
       final Uint8List bytes = await file.readAsBytes();
-      final Float32List inputBuffer = ImageProcessor.processGalleryImage(bytes);
-      final List<DetectionResult> results = await widget.detector.detect(inputBuffer);
+      final Float32List inputBuffer = await processGalleryImage(bytes);
+      final ClassificationResult result = await widget.classifier.classify(inputBuffer);
 
       if (!mounted) return;
 
@@ -65,8 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(
           builder: (context) => GalleryResultScreen(
             initialImageBytes: bytes,
-            initialDetections: results,
-            detector: widget.detector,
+            initialClassification: result,
+            classifier: widget.classifier,
           ),
         ),
       );
@@ -133,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 32.0),
 
-                    // Supported categories overview card
+                    // Supported classes overview card
                     Container(
                       padding: const EdgeInsets.all(18.0),
                       decoration: BoxDecoration(
@@ -153,19 +152,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 14.0),
-                          _buildCategoryRow(
-                            category: WasteCategory.organik,
-                            items: 'Apel, Pisang',
+                          Wrap(
+                            spacing: 8.0,
+                            runSpacing: 8.0,
+                            children: [
+                              for (final wasteClass in kWasteClasses)
+                                _buildClassBadge(wasteClass.displayName),
+                            ],
                           ),
-                          const Divider(height: 20.0, color: AppColors.surfaceWarm),
-                          _buildCategoryRow(
-                            category: WasteCategory.kertas,
-                            items: 'Karton Susu, Wadah Kertas, Gulungan Kertas',
-                          ),
-                          const Divider(height: 20.0, color: AppColors.surfaceWarm),
-                          _buildCategoryRow(
-                            category: WasteCategory.plastik,
-                            items: 'Kantong Plastik, Botol Plastik, Wadah Plastik',
+                          const SizedBox(height: 12.0),
+                          const Text(
+                            'Isi foto dengan satu jenis sampah agar klasifikasi lebih akurat. Skor model bukan ukuran akurasi.',
+                            style: TextStyle(
+                              fontSize: 13.0,
+                              color: AppColors.textMuted,
+                              height: 1.3,
+                            ),
                           ),
                         ],
                       ),
@@ -191,42 +193,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategoryRow({
-    required WasteCategory category,
-    required String items,
-  }) {
-    final Color color = AppColors.getCategoryColor(category);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(6.0),
-          ),
-          child: Text(
-            category.label,
-            style: TextStyle(
-              fontSize: 12.0,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
+  Widget _buildClassBadge(String name) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreen.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: Text(
+        name,
+        style: const TextStyle(
+          fontSize: 13.0,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primaryGreenDark,
         ),
-        const SizedBox(width: 12.0),
-        Expanded(
-          child: Text(
-            items,
-            style: const TextStyle(
-              fontSize: 13.0,
-              color: AppColors.textDark,
-              height: 1.3,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

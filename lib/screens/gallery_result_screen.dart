@@ -1,23 +1,22 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/detection_result.dart';
+import '../models/classification_result.dart';
 import '../services/image_processor.dart';
-import '../services/tflite/waste_detector_service.dart';
+import '../services/tflite/waste_classifier_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/detection_card.dart';
-import '../widgets/detection_overlay.dart';
+import '../widgets/classification_card.dart';
 
 class GalleryResultScreen extends StatefulWidget {
   final Uint8List initialImageBytes;
-  final List<DetectionResult> initialDetections;
-  final WasteDetector detector;
+  final ClassificationResult initialClassification;
+  final WasteClassifier classifier;
 
   const GalleryResultScreen({
     super.key,
     required this.initialImageBytes,
-    required this.initialDetections,
-    required this.detector,
+    required this.initialClassification,
+    required this.classifier,
   });
 
   @override
@@ -26,7 +25,7 @@ class GalleryResultScreen extends StatefulWidget {
 
 class _GalleryResultScreenState extends State<GalleryResultScreen> {
   late Uint8List _imageBytes;
-  late List<DetectionResult> _detections;
+  late ClassificationResult _classification;
   bool _isProcessing = false;
   String? _errorMessage;
   final ImagePicker _picker = ImagePicker();
@@ -35,10 +34,12 @@ class _GalleryResultScreenState extends State<GalleryResultScreen> {
   void initState() {
     super.initState();
     _imageBytes = widget.initialImageBytes;
-    _detections = widget.initialDetections;
+    _classification = widget.initialClassification;
   }
 
   Future<void> _pickAnotherImage() async {
+    if (_isProcessing) return;
+
     try {
       final XFile? file = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -46,7 +47,8 @@ class _GalleryResultScreenState extends State<GalleryResultScreen> {
         maxHeight: 1920,
       );
 
-      if (file == null) return;
+      // Cancellation keeps the previous photo and its result.
+      if (file == null || !mounted) return;
 
       setState(() {
         _isProcessing = true;
@@ -54,15 +56,20 @@ class _GalleryResultScreenState extends State<GalleryResultScreen> {
       });
 
       final bytes = await file.readAsBytes();
-      final inputBuffer = ImageProcessor.processGalleryImage(bytes);
-      final results = await widget.detector.detect(inputBuffer);
+      final inputBuffer = await processGalleryImage(bytes);
+      final result = await widget.classifier.classify(inputBuffer);
 
+      if (!mounted) return;
+
+      // Attach the new result together with the photo it came from only
+      // after inference succeeded; a failure keeps the previous pair.
       setState(() {
         _imageBytes = bytes;
-        _detections = results;
+        _classification = result;
         _isProcessing = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Gagal memproses gambar: $e';
         _isProcessing = false;
@@ -74,7 +81,7 @@ class _GalleryResultScreenState extends State<GalleryResultScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hasil Analisis Foto'),
+        title: const Text('Hasil Klasifikasi Foto'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -120,114 +127,39 @@ class _GalleryResultScreenState extends State<GalleryResultScreen> {
                       const SizedBox(height: 16.0),
                     ],
 
-                    // Image with detection overlay
+                    // Photo
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12.0),
                       child: Container(
                         color: AppColors.surfaceWarm,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            return Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Image.memory(
-                                  _imageBytes,
-                                  width: constraints.maxWidth,
-                                  fit: BoxFit.contain,
-                                ),
-                                Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: DetectionOverlayPainter(
-                                      detections: _detections,
-                                      previewSize: Size(constraints.maxWidth, constraints.maxWidth),
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                        child: Image.memory(
+                          _imageBytes,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
                     const SizedBox(height: 20.0),
 
-                    // Detection header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Objek Terdeteksi',
-                          style: TextStyle(
-                            fontSize: 18.0,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
-                          decoration: BoxDecoration(
-                            color: _detections.isNotEmpty
-                                ? AppColors.primaryGreenLight.withValues(alpha: 0.15)
-                                : AppColors.surfaceWarm,
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          child: Text(
-                            '${_detections.length} objek',
-                            style: TextStyle(
-                              fontSize: 13.0,
-                              fontWeight: FontWeight.w600,
-                              color: _detections.isNotEmpty
-                                  ? AppColors.primaryGreenDark
-                                  : AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      'Hasil Klasifikasi',
+                      style: TextStyle(
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4.0),
+                    const Text(
+                      'Skor model bukan ukuran akurasi dan model tidak menjamin pengenalan benda di luar enam kelas.',
+                      style: TextStyle(
+                        fontSize: 13.0,
+                        color: AppColors.textMuted,
+                        height: 1.3,
+                      ),
                     ),
                     const SizedBox(height: 12.0),
-
-                    // Results list or empty state
-                    if (_detections.isEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.all(20.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12.0),
-                          border: Border.all(color: AppColors.borderSubtle),
-                        ),
-                        child: const Column(
-                          children: [
-                            Icon(
-                              Icons.search_off_outlined,
-                              size: 40.0,
-                              color: AppColors.textMuted,
-                            ),
-                            SizedBox(height: 10.0),
-                            Text(
-                              'Belum ada objek yang dikenali',
-                              style: TextStyle(
-                                fontSize: 15.0,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textDark,
-                              ),
-                            ),
-                            SizedBox(height: 4.0),
-                            Text(
-                              'Foto belum memuat salah satu dari 8 jenis sampah yang didukung model EcoSort.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13.0,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ] else ...[
-                      for (final detection in _detections)
-                        DetectionCard(detection: detection),
-                    ],
+                    ClassificationCard(result: _classification),
 
                     const SizedBox(height: 24.0),
 

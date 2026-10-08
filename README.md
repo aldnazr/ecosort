@@ -1,26 +1,28 @@
 # EcoSort
 
-Aplikasi Flutter untuk klasifikasi sampah lewat kamera atau foto galeri, berjalan luring (offline) di perangkat. Model deteksi object YOLO dijalankan dengan TFLite melalui `flutter_litert`, jadi tidak ada server yang terlibat.
+Aplikasi Flutter untuk klasifikasi sampah lewat kamera atau foto galeri, berjalan luring (offline) di perangkat. Model klasifikasi MobileNetV4-Small dijalankan dengan LiteRT melalui `flutter_litert`, jadi tidak ada server yang terlibat.
 
 ## Fitur
 
-- Deteksi langsung lewat kamera: bounding box dan daftar objek diperbarui selama pratinjau.
+- Klasifikasi langsung lewat kamera: kelas teratas (top-1) beserta skor model diperbarui selama pratinjau.
 - Klasifikasi foto dari galeri, dengan hasil ditampilkan di layar terpisah.
-- Tiga kategori sampah: Organik, Kertas, Plastik.
-- Delapan kelas objek: Apel, Pisang, Karton Susu, Wadah Kertas, Gulungan Kertas, Kantong Plastik, Botol Plastik, Wadah Plastik.
+- Enam kelas: Kardus, Kaca, Logam, Kertas, Plastik, Sampah lainnya.
 - Semua pemrosesan berjalan di perangkat.
+
+Skor model adalah probabilitas softmax dari model, bukan ukuran akurasi terukur, dan model tidak menjamin pengenalan benda di luar enam kelas. Isi foto dengan satu jenis sampah agar hasil lebih akurat.
 
 ## Model
 
 | Item | Nilai |
 |------|-------|
-| Berkas | `lib/services/tflite/best_int8.tflite` (format int8) |
-| Input | `1 x 320 x 320 x 3`, nilai RGB ternormalisasi 0..1 |
-| Output | `[1, 12, 2100]` |
-| Ambang skor | 0.30 |
-| Ambang IoU (NMS) | 0.40 |
+| Berkas | `lib/services/tflite/garbage_mobilenetv4_small.tflite` |
+| Input | `1 x 224 x 224 x 3`, float32 NHWC RGB, nilai piksel 0..255 |
+| Preprocessing | Resize bilinear langsung seluruh gambar ke 224x224, tanpa crop/letterbox; tanpa normalisasi di aplikasi (mean/std sudah ditanam di model) |
+| Output | `1 x 6`, float32, probabilitas softmax |
+| Indeks | 0 cardboard, 1 glass, 2 metal, 3 paper, 4 plastic, 5 trash |
+| Hasil | Argmax (tie memakai indeks pertama) beserta probabilitasnya; tanpa ambang skor |
 
-Kelas dan pemetaan kategorinya ada di `lib/models/detection_result.dart` (`kSupportedWasteClasses`).
+Sumber kontrak: `lib/services/tflite/Garbage_Classification_MobileNetV4_Small_TFLite.ipynb`. Pemetaan tampilan ada di `lib/models/classification_result.dart` (`kWasteClasses`).
 
 ## Persyaratan
 
@@ -39,23 +41,20 @@ flutter run
 
 ```
 lib/
-  main.dart                        # titik masuk, inisialisasi detector
+  main.dart                        # titik masuk, inisialisasi classifier
   models/
-    detection_result.dart          # hasil deteksi + daftar kelas didukung
-    waste_category.dart            # enum kategori (organik, kertas, plastik)
+    classification_result.dart     # hasil klasifikasi + daftar enam kelas
   screens/
     home_screen.dart               # layar awal: kamera atau galeri
-    camera_screen.dart             # deteksi langsung via kamera
+    camera_screen.dart             # klasifikasi langsung via kamera
     gallery_result_screen.dart     # hasil analisis foto galeri
   services/
-    image_processor.dart           # decode, resize 320x320, konversi YUV/BGRA ke RGB
+    image_processor.dart           # decode+EXIF, konversi YUV/BGRA, resize 224x224, packing 0..255
     tflite/
-      waste_detector_service.dart  # bootstrap interpreter TFLite
-      yolo_parser.dart             # parsing output YOLO + NMS
-      best_int8.tflite             # model deteksi
+      waste_classifier_service.dart  # bootstrap interpreter LiteRT, argmax, validasi output
+      garbage_mobilenetv4_small.tflite # model klasifikasi
   widgets/
-    detection_card.dart            # kartu info satu deteksi
-    detection_overlay.dart         # bounding box di atas kamera
+    classification_card.dart       # kartu satu hasil (label + skor model)
   theme/app_theme.dart             # warna dan tema aplikasi
 ```
 
@@ -65,11 +64,11 @@ lib/
 flutter test
 ```
 
-Tersedia di `test/`: parser YOLO, `WasteDetectorService`, `ImageProcessor`, model, layar (home, camera, gallery result), dan widget (detection card, detection overlay).
+Tersedia di `test/`: model (`classification_result`), `WasteClassifierService` termasuk smoke test model asli, `ImageProcessor` (RGB 0..255, resize tanpa crop, rotasi, stride kamera, EXIF), layar (home, camera, gallery result), dan widget (`classification_card`).
 
 ## Dependensi Utama
 
-- `flutter_litert` (3.9.3): runtime TFLite
+- `flutter_litert` (3.9.3): runtime LiteRT
 - `camera` (0.12.1): akses kamera
 - `image_picker` (1.2.4): pemilihan foto galeri
 - `image` (4.10.1): dekode dan transformasi gambar

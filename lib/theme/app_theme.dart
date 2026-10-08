@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/waste_category.dart';
 
 class AppColors {
   // Natural leaf green & warm cream palette
@@ -15,24 +14,8 @@ class AppColors {
   static const Color textMuted = Color(0xFF5A665D);
   static const Color borderSubtle = Color(0xFFDCD7CA);
 
-  // Category & detection accent colors (WCAG AA compliant contrast)
-  static const Color categoryOrganik = Color(0xFF2E7D32);
-  static const Color categoryKertas = Color(0xFF0D6EFD);
-  static const Color categoryPlastik = Color(0xFFD97706);
-
-  static const Color detectionBox = Color(0xFFF59E0B);
+  static const Color warningAmber = Color(0xFFF59E0B);
   static const Color errorRed = Color(0xFFC53030);
-
-  static Color getCategoryColor(WasteCategory category) {
-    switch (category) {
-      case WasteCategory.organik:
-        return categoryOrganik;
-      case WasteCategory.kertas:
-        return categoryKertas;
-      case WasteCategory.plastik:
-        return categoryPlastik;
-    }
-  }
 }
 
 class AppTheme {
