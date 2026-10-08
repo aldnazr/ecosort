@@ -99,7 +99,8 @@ int computeFrameRotation({
     throw ArgumentError('Camera frame has no planes.');
   }
   final yPlane = planes[0];
-  if (yPlane.bytes.length < yPlane.bytesPerRow * height) {
+  final minLumaLength = (height - 1) * yPlane.bytesPerRow + width;
+  if (yPlane.bytes.length < minLumaLength) {
     throw ArgumentError('Luma plane buffer is too small.');
   }
 
@@ -110,11 +111,23 @@ int computeFrameRotation({
   if (planes.length >= 3) {
     final uPlane = planes[1];
     final vPlane = planes[2];
-    if (uPlane.bytes.length < uPlane.bytesPerRow * chromaHeight ||
-        vPlane.bytes.length < vPlane.bytesPerRow * chromaHeight) {
+    final chromaArea = chromaWidth * chromaHeight;
+    // iOS reports null pixel stride; infer interleaving from buffer size.
+    final uPixelStride = uPlane.bytesPerPixel ??
+        (uPlane.bytes.length >= chromaArea * 2 ? 2 : 1);
+    final vPixelStride = vPlane.bytesPerPixel ??
+        (vPlane.bytes.length >= chromaArea * 2 ? 2 : 1);
+
+    final minULength = (chromaHeight - 1) * uPlane.bytesPerRow +
+        (chromaWidth - 1) * uPixelStride +
+        1;
+    final minVLength = (chromaHeight - 1) * vPlane.bytesPerRow +
+        (chromaWidth - 1) * vPixelStride +
+        1;
+    if (uPlane.bytes.length < minULength || vPlane.bytes.length < minVLength) {
       throw ArgumentError('Chroma plane buffer is too small.');
     }
-    final chromaArea = chromaWidth * chromaHeight;
+
     _convertYuv(
       out,
       width,
@@ -123,13 +136,10 @@ int computeFrameRotation({
       yRowStride: yPlane.bytesPerRow,
       uBytes: uPlane.bytes,
       uRowStride: uPlane.bytesPerRow,
-      // iOS reports null pixel stride; infer interleaving from buffer size.
-      uPixelStride: uPlane.bytesPerPixel ??
-          (uPlane.bytes.length >= chromaArea * 2 ? 2 : 1),
+      uPixelStride: uPixelStride,
       vBytes: vPlane.bytes,
       vRowStride: vPlane.bytesPerRow,
-      vPixelStride: vPlane.bytesPerPixel ??
-          (vPlane.bytes.length >= chromaArea * 2 ? 2 : 1),
+      vPixelStride: vPixelStride,
     );
   } else if (planes.length == 1 && image.format.group == ImageFormatGroup.nv21) {
     // Single-buffer NV21 (camera_android_camerax): Y plane followed by
@@ -152,12 +162,17 @@ int computeFrameRotation({
   } else if (planes.length == 2) {
     // NV21: interleaved VU pairs in the second plane.
     final vuPlane = planes[1];
-    if (vuPlane.bytes.length < vuPlane.bytesPerRow * chromaHeight) {
+    final vuRowStride = vuPlane.bytesPerRow;
+    final vuPixelStride = vuPlane.bytesPerPixel ?? 2;
+    final vuTrailingOffset = vuPixelStride == 1 ? chromaWidth : 1;
+    final minVuLength = (chromaHeight - 1) * vuRowStride +
+        (chromaWidth - 1) * vuPixelStride +
+        vuTrailingOffset +
+        1;
+    if (vuPlane.bytes.length < minVuLength) {
       throw ArgumentError('Chroma plane buffer is too small.');
     }
     final vu = vuPlane.bytes;
-    final vuRowStride = vuPlane.bytesPerRow;
-    final vuPixelStride = vuPlane.bytesPerPixel ?? 2;
     final y = yPlane.bytes;
     final yRowStride = yPlane.bytesPerRow;
     for (var row = 0; row < height; row++) {
@@ -230,7 +245,8 @@ void _writeYuvPixel(
       'Unexpected BGRA pixel stride: $bytesPerPixel.',
     );
   }
-  if (plane.bytes.length < plane.bytesPerRow * height) {
+  final minBgraLength = (height - 1) * plane.bytesPerRow + width * 4;
+  if (plane.bytes.length < minBgraLength) {
     throw ArgumentError('BGRA plane buffer is too small.');
   }
   final out = Uint8List(width * height * 3);

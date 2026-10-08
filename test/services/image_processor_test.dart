@@ -217,6 +217,35 @@ void main() {
       }
     });
 
+    test('yuv420 handles buffer without last-row stride padding (Android qdgralloc)', () {
+      // 4x2 frame with rowStride = 6. Last row only has 4 bytes (no trailing pad),
+      // total length = (2 - 1) * 6 + 4 = 10 instead of 6 * 2 = 12.
+      const width = 4, height = 2;
+      final y = Uint8List.fromList([128, 128, 128, 128, 0, 0, 128, 128, 128, 128]);
+      final u = Uint8List.fromList([128, 128]);
+      final v = Uint8List.fromList([128, 128]);
+      final image = _cameraImage(
+        group: ImageFormatGroup.yuv420,
+        width: width,
+        height: height,
+        planes: [
+          (bytes: y, bytesPerRow: 6, bytesPerPixel: 1),
+          (bytes: u, bytesPerRow: 2, bytesPerPixel: 1),
+          (bytes: v, bytesPerRow: 2, bytesPerPixel: 1),
+        ],
+      );
+
+      final rgb = cameraFrameToRgb(image);
+      expect(rgb.width, width);
+      expect(rgb.height, height);
+      expect(rgb.rgb, hasLength(width * height * 3));
+      for (var i = 0; i < width * height; i++) {
+        expect(rgb.rgb[i * 3], 128);
+        expect(rgb.rgb[i * 3 + 1], 128);
+        expect(rgb.rgb[i * 3 + 2], 128);
+      }
+    });
+
     test('yuv420 semi-planar with interleaved chroma (pixel stride 2)', () {
       // 2x2 red-ish frame: Y=76, U=84, V=255 -> R~254, G~0, B~0.
       const width = 2, height = 2;
