@@ -395,9 +395,6 @@ class _CameraScreenState extends State<CameraScreen>
         Expanded(
           flex: 3,
           child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(16),
-            ),
             child: Stack(
               fit: StackFit.expand,
               children: [

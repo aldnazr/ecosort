@@ -51,8 +51,9 @@ jobs:
             echo 'pubspec.yaml must contain a version like 0.1.0+1' >&2
             exit 1
           fi
+          version_name="${version%+*}"
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/ecosort-v${version}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/ecosort-v${version_name}.apk"
 
       - name: Upload APK for release
         if: github.event_name == 'push'
@@ -89,8 +90,9 @@ jobs:
             echo 'pubspec.yaml must contain a version like 0.1.0 or 0.1.0+1' >&2
             exit 1
           fi
-          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
-          echo "apk=dist/ecosort-v${version}.apk" >> "$GITHUB_OUTPUT"
+          version_name="${version%+*}"
+          echo "tag=v${version_name}" >> "$GITHUB_OUTPUT"
+          echo "apk=dist/ecosort-v${version_name}.apk" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release for new versions
         env:
