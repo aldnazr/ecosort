@@ -37,6 +37,22 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          ndk_version="28.2.13676358"
+          ndk_dir="$ANDROID_HOME/ndk/$ndk_version"
+          for attempt in 1 2 3; do
+            rm -rf "$ndk_dir"
+            if yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 \
+              && "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk_version" >/dev/null; then
+              exit 0
+            fi
+            echo "NDK install attempt $attempt failed, retrying..." >&2
+            sleep 15
+          done
+          exit 1
+
       - name: Build Android APK
         run: |
           chmod +x android/gradlew
